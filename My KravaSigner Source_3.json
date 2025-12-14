@@ -21,7 +21,6 @@
       "iconURL": "https://i.imgur.com/e0r7Bhp.png",
       "tintColor": "#1cfcac",
       "category": "lifestyle",
-
       "screenshotURLs": [
         "https://i.imgur.com/J507O02.jpeg",
         "https://i.imgur.com/5PKXz8E.png",
@@ -30,7 +29,13 @@
         "https://i.imgur.com/GuD5qN9.png",
         "https://i.imgur.com/zYYCMe3.png"
       ],
-
+      "ipadScreenshotURLs": [
+        "https://i.imgur.com/nZeYW9I.jpeg",
+        "https://i.imgur.com/JXOSSHj.png",
+        "https://i.imgur.com/HjZcAGU.jpeg",
+        "https://i.imgur.com/XQWfpvC.jpeg",
+        "https://i.imgur.com/UCAUQOC.jpeg"
+      ],
       "screenshots": {
         "iphone": [
           "https://i.imgur.com/J507O02.jpeg",
@@ -101,7 +106,6 @@
       "iconURL": "https://i.imgur.com/Ua9EEmg.png",
       "tintColor": "#fc6404",
       "category": "entertainment",
-
       "screenshotURLs": [
         "https://i.imgur.com/h0c31ws.jpeg",
         "https://i.imgur.com/pMDIbL6.jpeg",
@@ -110,7 +114,12 @@
         "https://i.imgur.com/KpKvoVl.png",
         "https://i.imgur.com/UqdX6hu.png"
       ],
-
+      "ipadScreenshotURLs": [
+        "https://i.imgur.com/NnrTJrT.jpeg",
+        "https://i.imgur.com/GsK87OD.jpeg",
+        "https://i.imgur.com/mQZDWZz.jpeg",
+        "https://i.imgur.com/VpM5p6B.jpeg"
+      ],
       "screenshots": {
         "iphone": [
           "https://i.imgur.com/h0c31ws.jpeg",
