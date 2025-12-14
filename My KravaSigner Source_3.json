@@ -7,16 +7,87 @@
   "patreonURL": "",
   "tintColor": "#6156e2",
   "featuredApps": [
-    "com.firecore.infuse"
+    "com.firecore.infuse",
+    "com.plant.parent"
   ],
   "apps": [
+    {
+      "name": "Plant Parent",
+      "bundleIdentifier": "com.plant.parent",
+      "marketplaceID": "1612792132",
+      "developerName": "Glority Global Group Ltd.",
+      "subtitle": "Plant care & identification with tweaked/modded subscription unlocked!:3",
+      "localizedDescription": "Tweaked/modded with subscription unlocked!!:33\n\nPlant Parent is a smart plant care guide that helps you identify plants, track watering schedules, monitor sunlight, and keep your plants healthy.",
+      "iconURL": "https://i.imgur.com/e0r7Bhp.png",
+      "tintColor": "#1cfcac",
+      "category": "lifestyle",
+      "screenshots": {
+        "iphone": [
+          "https://i.imgur.com/J507O02.jpeg",
+          "https://i.imgur.com/5PKXz8E.png",
+          "https://i.imgur.com/5npbch8.jpeg",
+          "https://i.imgur.com/Fc21BI0.jpeg",
+          "https://i.imgur.com/GuD5qN9.png",
+          "https://i.imgur.com/zYYCMe3.png"
+        ],
+        "ipad": [
+          {
+            "imageURL": "https://i.imgur.com/nZeYW9I.jpeg",
+            "width": 2732,
+            "height": 2048
+          },
+          {
+            "imageURL": "https://i.imgur.com/JXOSSHj.png",
+            "width": 2732,
+            "height": 2048
+          },
+          {
+            "imageURL": "https://i.imgur.com/HjZcAGU.jpeg",
+            "width": 2732,
+            "height": 2048
+          },
+          {
+            "imageURL": "https://i.imgur.com/XQWfpvC.jpeg",
+            "width": 2732,
+            "height": 2048
+          },
+          {
+            "imageURL": "https://i.imgur.com/UCAUQOC.jpeg",
+            "width": 2732,
+            "height": 2048
+          }
+        ]
+      },
+      "versions": [
+        {
+          "downloadURL": "https://downloads.sourceforge.net/project/plant-parent-ipa/v3.9.0/Plant%20Parent%2B%2B_1.133_15.0_LeTi.ipa",
+          "size": 111200000,
+          "version": "3.9.0 ++",
+          "buildVersion": "",
+          "date": "2025-12-14",
+          "localizedDescription": "Tweaked/modded Plant Parent with subscription unlocked!\n\nInitial release of the tweaked version based on v3.9.0.",
+          "minOSVersion": "15.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSCameraUsageDescription": "Snap a picture of a plant and Plant Parent can identify it",
+          "NSLocationWhenInUseUsageDescription": "Your location will be used to provide you with relevant weather data",
+          "NSPhotoLibraryAddUsageDescription": "Allow us to save photos to your album",
+          "NSPhotoLibraryUsageDescription": "Submit a picture of plant and Plant Parent can identify it",
+          "NSUserTrackingUsageDescription": "This allows us to personalize content for you, and improve attribution (to bring more users like you to Plant Parent)"
+        }
+      },
+      "patreon": {}
+    },
     {
       "name": "Infuse",
       "bundleIdentifier": "com.firecore.infuse",
       "marketplaceID": "1136220934",
       "developerName": "Firecore, LLC",
-      "subtitle": "Smart video player with tweaked/modded subscription unlocked",
-      "localizedDescription": "Tweaked/modded subscription unlocked!:33\n\nInfuse is a powerful video player that lets you watch almost any video format on your iPhone or iPad. Stream from network shares, cloud services, or play files locally with beautiful design and advanced playback features.",
+      "subtitle": "Smart video player with tweaked/modded subscription unlocked!:3",
+      "localizedDescription": "Tweaked/modded subscription unlocked!!:33\n\nInfuse is a powerful video player that lets you watch almost any video format on your iPhone or iPad. Stream from network shares, cloud services, or play files locally with beautiful design and advanced playback features.",
       "iconURL": "https://i.imgur.com/Ua9EEmg.png",
       "tintColor": "#fc6404",
       "category": "entertainment",
