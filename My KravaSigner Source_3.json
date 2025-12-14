@@ -1,7 +1,7 @@
 {
   "name": "My KravaSigner Source:3",
   "subtitle": "A source of SOME (only SOME) tweaked/modded IPAs:3",
-  "description": "Welcome to my source! Here you'll find SOME (only SOME) tweaked/modded IPAs, I don’t think that I will ever be able to add all of the apps on the App Store, so yeah, but anyways:33",
+  "description": "Welcome to my source! Here you'll find SOME (only SOME) tweaked/modded IPAs, I don\u2019t think that I will ever be able to add all of the apps on the App Store, so yeah, but anyways:33",
   "iconURL": "https://i.imgur.com/pqIZoZo.jpeg",
   "website": "",
   "patreonURL": "",
@@ -23,12 +23,36 @@
       "category": "lifestyle",
       "screenshots": {
         "iphone": [
-          "https://i.imgur.com/J507O02.jpeg",
-          "https://i.imgur.com/5PKXz8E.png",
-          "https://i.imgur.com/5npbch8.jpeg",
-          "https://i.imgur.com/Fc21BI0.jpeg",
-          "https://i.imgur.com/GuD5qN9.png",
-          "https://i.imgur.com/zYYCMe3.png"
+          {
+            "imageURL": "https://i.imgur.com/J507O02.jpeg",
+            "width": 1170,
+            "height": 2532
+          },
+          {
+            "imageURL": "https://i.imgur.com/5PKXz8E.png",
+            "width": 1170,
+            "height": 2532
+          },
+          {
+            "imageURL": "https://i.imgur.com/5npbch8.jpeg",
+            "width": 1170,
+            "height": 2532
+          },
+          {
+            "imageURL": "https://i.imgur.com/Fc21BI0.jpeg",
+            "width": 1170,
+            "height": 2532
+          },
+          {
+            "imageURL": "https://i.imgur.com/GuD5qN9.png",
+            "width": 1170,
+            "height": 2532
+          },
+          {
+            "imageURL": "https://i.imgur.com/zYYCMe3.png",
+            "width": 1170,
+            "height": 2532
+          }
         ],
         "ipad": [
           {
