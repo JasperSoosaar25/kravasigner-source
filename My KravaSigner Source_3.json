@@ -60,7 +60,7 @@
       },
       "versions": [
         {
-          "downloadURL": "https://downloads.sourceforge.net/project/plant-parent-ipa/v3.9.0/Plant%20Parent%2B%2B_1.133_15.0_LeTi.ipa",
+          "downloadURL": "https://pub-62165c9f78864efe94b9f51de0021312.r2.dev/Plant-Parent/v3.9.0/Plant%20Parent%2B%2B_1.133_15.0_LeTi.ipa",
           "size": 111200000,
           "version": "3.9.0",
           "buildVersion": "",
@@ -93,7 +93,7 @@
       "category": "entertainment",
       "versions": [
         {
-          "downloadURL": "https://altushost-swe.dl.sourceforge.net/project/plant-parent-ipa/Infuse/v8.3/Infuse_8.3_InfusePlus_2.4.1_18.0_LeTi.ipa?viasf=1",
+          "downloadURL": "https://pub-62165c9f78864efe94b9f51de0021312.r2.dev/Infuse/v8.3/Infuse_8.3_InfusePlus_2.4.1_18.0_LeTi.ipa",
           "size": 71100000,
           "version": "8.3",
           "buildVersion": "",
