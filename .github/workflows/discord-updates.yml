@@ -1,0 +1,16 @@
+name: Discord Updates
+
+on:
+  push:
+    paths:
+      - "*.json"
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send update to Discord
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d "{\"content\":\"🆕 **KravaSigner repo updated!**\\nA new app may have been added :3\"}" \
+          "https://discord.com/api/webhooks/1449962676376698921/let-qsVAmkB3VeJ5eAptjKc5OLiOtXlQUvOEcrFMFbTnupbdu0BhdPnHxco2YYs4oyW5"
