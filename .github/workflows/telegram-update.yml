@@ -10,103 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Create Python script
-        run: |
-          cat > notify.py <<'PY'
-          import json, subprocess, html, os, sys
-
-          BOT = os.environ.get("TELEGRAM_BOT_TOKEN")
-          CHAT = os.environ.get("TELEGRAM_CHAT_ID")
-          REPO_URL = os.environ.get("REPO_URL", "")
-
-          if not BOT or not CHAT:
-              print("Missing Telegram secrets")
-              sys.exit(1)
-
-          try:
-              file = subprocess.check_output(
-                  ["bash", "-lc", "git diff --name-only HEAD^ HEAD | grep '\\.json$' | head -n 1"],
-                  text=True
-              ).strip()
-          except subprocess.CalledProcessError:
-              sys.exit(0)
-
-          if not file:
-              sys.exit(0)
-
-          def load(path):
-              with open(path, "r", encoding="utf-8") as f:
-                  return json.load(f)
-
-          def load_prev(path):
-              try:
-                  data = subprocess.check_output(
-                      ["bash", "-lc", f"git show HEAD^:{path}"], text=True
-                  )
-                  return json.loads(data)
-              except:
-                  return {"apps": []}
-
-          cur = load(file)
-          prev = load_prev(file)
-
-          cur_apps = {a["bundleIdentifier"]: a for a in cur.get("apps", [])}
-          prev_apps = {a["bundleIdentifier"]: a for a in prev.get("apps", [])}
-
-          new_apps = [cur_apps[b] for b in cur_apps if b not in prev_apps]
-
-          if not new_apps:
-              print("No new apps detected")
-              sys.exit(0)
-
-          def latest_version(app):
-              versions = app.get("versions", [])
-              return max(versions, key=lambda v: v.get("date", "")) if versions else {}
-
-          def esc(s):
-              return html.escape(str(s), quote=False)
-
-          for app in new_apps:
-              bid = app["bundleIdentifier"]
-              ver = latest_version(app)
-
-              msg = f"""
-🚀 <b>New App Added to KravaSigner!</b>
-
-📱 <b>App name:</b> {esc(app.get("name"))}
-🆔 <b>Bundle ID:</b> <code>{esc(bid)}</code>
-👨‍💻 <b>Developer:</b> {esc(app.get("developerName"))}
-🧩 <b>Version:</b> {esc(ver.get("version", "N/A"))}
-
-📝 <b>Description:</b>
-{esc(app.get("localizedDescription") or app.get("subtitle") or "")}
-
-🍎 <b>App Store:</b>
-https://apps.apple.com/app/id{app.get("marketplaceID")}
-
-📦 <b>Repository:</b>
-{esc(REPO_URL)}
-""".strip()
-
-              subprocess.run([
-                  "curl", "-s", "-X", "POST",
-                  f"https://api.telegram.org/bot{BOT}/sendMessage",
-                  "-d", f"chat_id={CHAT}",
-                  "-d", "parse_mode=HTML",
-                  "-d", "disable_web_page_preview=true",
-                  "-d", f"text={msg}"
-              ])
-          PY
-
-      - name: Run notifier
+      - name: Send Telegram updates
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           REPO_URL: ${{ secrets.REPO_URL }}
-        run: |
-          python3 notify.py
+        run: >
+          python3 -c "import json,subprocess,html,os,sys;
+          BOT=os.environ.get('TELEGRAM_BOT_TOKEN');
+          CHAT=os.environ.get('TELEGRAM_CHAT_ID');
+          REPO=os.environ.get('REPO_URL','');
+          file=subprocess.check_output(['bash','-lc','git diff --name-only HEAD^ HEAD | grep \\.json$ | head -n 1'],text=True).strip();
+          cur=json.load(open(file));
+          try: prev=json.loads(subprocess.check_output(['bash','-lc',f'git show HEAD^:{file}'],text=True));
+          except: prev={'apps':[]};
+          cur_apps={a['bundleIdentifier']:a for a in cur.get('apps',[])};
+          prev_apps={a['bundleIdentifier']:a for a in prev.get('apps',[])};
+          new=[cur_apps[b] for b in cur_apps if b not in prev_apps];
+          esc=lambda s: html.escape(str(s),quote=False);
+          import subprocess as sp;
+          for a in new:
+            v=max(a.get('versions',[]),key=lambda x:x.get('date',''),default={});
+            msg=f'🚀 <b>New App Added!</b>\\n\\n📱 <b>App:</b> {esc(a.get(\"name\"))}\\n🆔 <b>Bundle:</b> <code>{esc(a.get(\"bundleIdentifier\"))}</code>\\n👨‍💻 <b>Developer:</b> {esc(a.get(\"developerName\"))}\\n🧩 <b>Version:</b> {esc(v.get(\"version\",\"N/A\"))}\\n\\n📝 <b>Description:</b>\\n{esc(a.get(\"localizedDescription\") or a.get(\"subtitle\") or \"\")}\\n\\n🍎 <b>App Store:</b> https://apps.apple.com/app/id{a.get(\"marketplaceID\")}\\n📦 <b>Repo:</b> {esc(REPO)}';
+            sp.run(['curl','-s','-X','POST',f'https://api.telegram.org/bot{BOT}/sendMessage','-d',f'chat_id={CHAT}','-d','parse_mode=HTML','-d','disable_web_page_preview=true','-d',f'text={msg}'])"
