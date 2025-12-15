@@ -1,0 +1,74 @@
+name: Notify Telegram on New App
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'My KravaSigner Source_3.json'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect new apps and send to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
+          git checkout HEAD~1 -- "My KravaSigner Source_3.json" 2>/dev/null || echo "No previous"
+          if [ -f "My KravaSigner Source_3.json" ]; then cp "My KravaSigner Source_3.json" old.json; else touch old.json; fi
+
+          git checkout HEAD -- "My KravaSigner Source_3.json"
+          cp "My KravaSigner Source_3.json" new.json
+
+          jq '.apps // []' old.json > old_apps.json
+          jq '.apps // []' new.json > new_apps.json
+
+          comm -23 <(jq -r '.[].name // empty' new_apps.json | sort) <(jq -r '.[].name // empty' old_apps.json | sort) > new_app_names.txt
+
+          if [ ! -s new_app_names.txt ]; then
+            echo "No new apps detected"
+            exit 0
+          fi
+
+          MESSAGE="🐮 *New tweaked/modded IPA(s) available!* 🚀\n\n"
+
+          while read APP_NAME; do
+            [ -z "$APP_NAME" ] && continue
+            APP=$(jq -r --arg name "$APP_NAME" '.apps[] | select(.name == $name)' new.json)
+
+            TITLE=$(echo "$APP" | jq -r '.name')
+            SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No description"')
+            DEVELOPER=$(echo "$APP" | jq -r '.developerName')
+            VERSION=$(echo "$APP" | jq -r '.versions[0].version // "Unknown"')
+            MARKETPLACE_ID=$(echo "$APP" | jq -r '.marketplaceID // ""')
+            APPSTORE_LINK="https://apps.apple.com/us/app/id$MARKETPLACE_ID"
+            [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store link"
+
+            MESSAGE="${MESSAGE}*$TITLE*\n"
+            MESSAGE="${MESSAGE}$SUBTITLE\n"
+            MESSAGE="${MESSAGE}$DEVELOPER\n"
+            MESSAGE="${MESSAGE}Version: $VERSION\n"
+            MESSAGE="${MESSAGE}App Store Link: $APPSTORE_LINK\n\n"
+
+          done < new_app_names.txt
+
+          MESSAGE="${MESSAGE}*Repository Source:*\nhttps://raw.githubusercontent.com/JasperSoosaar25/kravasigner-source/main/My%20KravaSigner%20Source_3.json\n\n"
+          MESSAGE="${MESSAGE}Commit by: ${{ github.actor }}\n"
+          MESSAGE="${MESSAGE}View changes: https://github.com/${{ github.repository }}/commit/${{ github.sha }}\n"
+          MESSAGE="${MESSAGE}Check out the latest apps in KravaSigner! 🐮"
+
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="$MESSAGE" \
+            -d parse_mode=Markdown \
+            -d disable_web_page_preview=true
+
+          echo "Notification sent!"
