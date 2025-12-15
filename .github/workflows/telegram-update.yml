@@ -8,112 +8,105 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout (with previous commit)
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Send Telegram messages for new apps
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          REPO_URL: ${{ secrets.REPO_URL }}
+      - name: Create Python script
         run: |
-          python3 - << 'PY'
+          cat > notify.py <<'PY'
           import json, subprocess, html, os, sys
-          from datetime import datetime
 
-          BOT = os.environ["TELEGRAM_BOT_TOKEN"]
-          CHAT = os.environ["TELEGRAM_CHAT_ID"]
+          BOT = os.environ.get("TELEGRAM_BOT_TOKEN")
+          CHAT = os.environ.get("TELEGRAM_CHAT_ID")
           REPO_URL = os.environ.get("REPO_URL", "")
 
-          # find changed json file
+          if not BOT or not CHAT:
+              print("Missing Telegram secrets")
+              sys.exit(1)
+
           try:
-            file = subprocess.check_output(
-              ["bash", "-lc", "git diff --name-only HEAD^ HEAD | grep -E '\\.json$' | head -n 1"],
-              text=True
-            ).strip()
+              file = subprocess.check_output(
+                  ["bash", "-lc", "git diff --name-only HEAD^ HEAD | grep '\\.json$' | head -n 1"],
+                  text=True
+              ).strip()
           except subprocess.CalledProcessError:
-            sys.exit(0)
+              sys.exit(0)
 
           if not file:
-            sys.exit(0)
+              sys.exit(0)
 
-          def load_current():
-            with open(file, "r", encoding="utf-8") as f:
-              return json.load(f)
+          def load(path):
+              with open(path, "r", encoding="utf-8") as f:
+                  return json.load(f)
 
-          def load_previous():
-            try:
-              out = subprocess.check_output(
-                ["bash", "-lc", f"git show HEAD^:{file}"], text=True
-              )
-              return json.loads(out)
-            except Exception:
-              return {"apps": []}
+          def load_prev(path):
+              try:
+                  data = subprocess.check_output(
+                      ["bash", "-lc", f"git show HEAD^:{path}"], text=True
+                  )
+                  return json.loads(data)
+              except:
+                  return {"apps": []}
 
-          cur = load_current()
-          prev = load_previous()
+          cur = load(file)
+          prev = load_prev(file)
 
           cur_apps = {a["bundleIdentifier"]: a for a in cur.get("apps", [])}
           prev_apps = {a["bundleIdentifier"]: a for a in prev.get("apps", [])}
 
-          new_bundles = [b for b in cur_apps if b not in prev_apps]
+          new_apps = [cur_apps[b] for b in cur_apps if b not in prev_apps]
 
-          if not new_bundles:
-            sys.exit(0)
+          if not new_apps:
+              print("No new apps detected")
+              sys.exit(0)
 
           def latest_version(app):
-            versions = app.get("versions", [])
-            if not versions:
-              return {}
-            return max(
-              versions,
-              key=lambda v: v.get("date", "")
-            )
+              versions = app.get("versions", [])
+              return max(versions, key=lambda v: v.get("date", "")) if versions else {}
 
           def esc(s):
-            return html.escape(str(s), quote=False)
+              return html.escape(str(s), quote=False)
 
-          for bid in new_bundles:
-            app = cur_apps[bid]
-            ver = latest_version(app)
+          for app in new_apps:
+              bid = app["bundleIdentifier"]
+              ver = latest_version(app)
 
-            name = app.get("name", "Unknown")
-            dev = app.get("developerName", "Unknown developer")
-            desc = app.get("localizedDescription") or app.get("subtitle") or ""
-            version = ver.get("version", "")
-            mid = str(app.get("marketplaceID", "")).strip()
-            appstore = f"https://apps.apple.com/app/id{mid}" if mid else "N/A"
-
-            if len(desc) > 800:
-              desc = desc[:800].rstrip() + "…"
-
-            message = f"""
+              msg = f"""
 🚀 <b>New App Added to KravaSigner!</b>
 
-📱 <b>App name:</b> {esc(name)}
+📱 <b>App name:</b> {esc(app.get("name"))}
 🆔 <b>Bundle ID:</b> <code>{esc(bid)}</code>
-👨‍💻 <b>Developer:</b> {esc(dev)}
-🧩 <b>Version:</b> {esc(version)}
+👨‍💻 <b>Developer:</b> {esc(app.get("developerName"))}
+🧩 <b>Version:</b> {esc(ver.get("version", "N/A"))}
 
 📝 <b>Description:</b>
-{esc(desc)}
+{esc(app.get("localizedDescription") or app.get("subtitle") or "")}
 
 🍎 <b>App Store:</b>
-{esc(appstore)}
+https://apps.apple.com/app/id{app.get("marketplaceID")}
 
 📦 <b>Repository:</b>
 {esc(REPO_URL)}
 """.strip()
 
-            subprocess.run([
-              "curl", "-s", "-X", "POST",
-              f"https://api.telegram.org/bot{BOT}/sendMessage",
-              "-d", f"chat_id={CHAT}",
-              "-d", "parse_mode=HTML",
-              "-d", "disable_web_page_preview=true",
-              "-d", f"text={message}"
-            ])
+              subprocess.run([
+                  "curl", "-s", "-X", "POST",
+                  f"https://api.telegram.org/bot{BOT}/sendMessage",
+                  "-d", f"chat_id={CHAT}",
+                  "-d", "parse_mode=HTML",
+                  "-d", "disable_web_page_preview=true",
+                  "-d", f"text={msg}"
+              ])
           PY
+
+      - name: Run notifier
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO_URL: ${{ secrets.REPO_URL }}
+        run: |
+          python3 notify.py
