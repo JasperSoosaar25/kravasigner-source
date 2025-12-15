@@ -53,7 +53,13 @@ jobs:
             APPSTORE_LINK="https://apps.apple.com/us/app/id$MARKETPLACE_ID"
             [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store link"
 
-            MESSAGE="🐮 *New tweaked/modded IPA available!* 🚀\n\n*$TITLE*\n$SUBTITLE\n$DEVELOPER\nVersion: $VERSION\n*Repository:*\n$REPO_URL\n*App Store Link:*\n$APPSTORE_LINK"
+            MESSAGE="🐮 *New tweaked/modded IPA available!* 🚀\n\n"
+            MESSAGE+="*$TITLE*\n"
+            MESSAGE+="$SUBTITLE\n"
+            MESSAGE+="$DEVELOPER\n"
+            MESSAGE+="Version: $VERSION\n"
+            MESSAGE+="*Repository:*\n$REPO_URL\n"
+            MESSAGE+="*App Store Link:*\n$APPSTORE_LINK"
 
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
@@ -64,4 +70,4 @@ jobs:
             sleep 2
           done < new_app_names.txt
 
-          echo "Success: Notifications sent!"
+          echo "Full messages sent successfully!"
