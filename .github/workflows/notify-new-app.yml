@@ -22,11 +22,9 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y jq
 
-          # Previous commit
           git checkout HEAD~1 -- "My KravaSigner Source_3.json" 2>/dev/null || echo "No previous"
           if [ -f "My KravaSigner Source_3.json" ]; then cp "My KravaSigner Source_3.json" old.json; else touch old.json; fi
 
-          # Current
           git checkout HEAD -- "My KravaSigner Source_3.json"
           cp "My KravaSigner Source_3.json" new.json
 
@@ -57,14 +55,13 @@ jobs:
             [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store link"
 
             CAPTION="🐮 *New tweaked/modded IPA available!* 🚀\n\n"
-            CAPTION="${CAPTION}*$TITLE*\n"
-            CAPTION="${CAPTION}$SUBTITLE\n"
-            CAPTION="${CAPTION}$DEVELOPER\n"
-            CAPTION="${CAPTION}Version: $VERSION\n"
-            CAPTION="${CAPTION}*Repository:*\n$REPO_URL\n"
-            CAPTION="${CAPTION}*App Store Link:*\n$APPSTORE_LINK"
+            CAPTION+ "*$TITLE*\n"
+            CAPTION+="$SUBTITLE\n"
+            CAPTION+="$DEVELOPER\n"
+            CAPTION+="Version: $VERSION\n"
+            CAPTION+="*Repository:*\n$REPO_URL\n"
+            CAPTION+="*App Store Link:*\n$APPSTORE_LINK"
 
-            # Send photo (icon) with caption
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
               -d photo="$ICON_URL" \
@@ -72,7 +69,7 @@ jobs:
               -d parse_mode=Markdown \
               -d disable_web_page_preview=true
 
-            sleep 1  # Avoid rate limits
+            sleep 2
           done < new_app_names.txt
 
-          echo "All notifications with icons sent!"
+          echo "Flawless notifications sent!"
