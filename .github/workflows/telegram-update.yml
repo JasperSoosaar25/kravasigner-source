@@ -1,0 +1,157 @@
+name: Telegram app updates
+
+on:
+  push:
+    paths:
+      - "**/*.json"
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (need previous commit too)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed JSON file
+        id: changed
+        run: |
+          FILE=$(git diff --name-only HEAD^ HEAD | grep -E '\.json$' | head -n 1 || true)
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+
+      - name: Build Telegram message from JSON diff
+        id: msg
+        if: steps.changed.outputs.file != ''
+        env:
+          FILE: ${{ steps.changed.outputs.file }}
+          REPO_URL: ${{ secrets.REPO_URL }}
+        run: |
+          python3 - << 'PY'
+          import json, os, subprocess, html, sys
+          from datetime import datetime
+
+          path = os.environ["FILE"]
+          repo_url = os.environ.get("REPO_URL", "").strip()
+
+          def load_current():
+            with open(path, "r", encoding="utf-8") as f:
+              return json.load(f)
+
+          def load_previous():
+            try:
+              out = subprocess.check_output(["bash","-lc", f"git show HEAD^:{path}"], text=True)
+              return json.loads(out)
+            except Exception:
+              return None
+
+          def apps_index(data):
+            idx = {}
+            for a in (data or {}).get("apps", []) or []:
+              bid = a.get("bundleIdentifier")
+              if bid:
+                idx[bid] = a
+            return idx
+
+          def parse_date(s: str):
+            if not s:
+              return None
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
+              try:
+                return datetime.strptime(s, fmt)
+              except Exception:
+                pass
+            return None
+
+          def latest_version_entry(app: dict):
+            vers = app.get("versions") or []
+            if not vers:
+              return None
+            # pick the one with latest "date" if present; else last item
+            best = vers[-1]
+            best_dt = parse_date(best.get("date", ""))
+            for v in vers:
+              dt = parse_date(v.get("date", ""))
+              if dt and (best_dt is None or dt > best_dt):
+                best, best_dt = v, dt
+            return best
+
+          cur = load_current()
+          prev = load_previous()
+
+          cur_idx = apps_index(cur)
+          prev_idx = apps_index(prev) if prev else {}
+
+          if not cur_idx:
+            print("text=")
+            sys.exit(0)
+
+          # 1) Prefer newly added app (bundle id not present before)
+          added_bids = [bid for bid in cur_idx.keys() if bid not in prev_idx]
+
+          chosen_bid = None
+          if added_bids:
+            chosen_bid = added_bids[0]
+          else:
+            # 2) Otherwise pick app with most recent versions[].date
+            def app_latest_dt(app):
+              v = latest_version_entry(app)
+              dt = parse_date((v or {}).get("date", "")) if v else None
+              return dt or datetime.min
+
+            chosen_bid = max(cur_idx.keys(), key=lambda bid: app_latest_dt(cur_idx[bid]))
+
+          a = cur_idx[chosen_bid]
+          v = latest_version_entry(a) or {}
+
+          name = a.get("name", "(Unknown)")
+          bundle = a.get("bundleIdentifier", chosen_bid)
+          developer = a.get("developerName", "(Unknown developer)")
+
+          # Description: prefer app localizedDescription; fall back to subtitle
+          desc = (a.get("localizedDescription") or a.get("subtitle") or "").strip()
+
+          version = (v.get("version") or v.get("buildVersion") or "").strip()
+
+          mid = str(a.get("marketplaceID") or "").strip()
+          appstore = f"https://apps.apple.com/app/id{mid}" if mid else "(No marketplaceID in JSON)"
+
+          # Telegram HTML escape
+          def esc(s): return html.escape(str(s), quote=False)
+
+          # keep description sane length so Telegram doesn't choke
+          if desc:
+            desc = desc.replace("\r\n", "\n").replace("\r", "\n")
+            if len(desc) > 800:
+              desc = desc[:800].rstrip() + "…"
+
+          lines = []
+          lines.append("🚀 <b>KravaSigner Repo Update!</b>")
+          lines.append("")
+          lines.append(f"📱 <b>App name:</b> {esc(name)}")
+          lines.append(f"🆔 <b>Bundle ID:</b> <code>{esc(bundle)}</code>")
+          lines.append(f"👨‍💻 <b>Developer:</b> {esc(developer)}")
+          lines.append(f"🧩 <b>Version:</b> {esc(version) if version else '(Not provided)'}")
+
+          if desc:
+            lines.append(f"📝 <b>Description:</b> {esc(desc)}")
+
+          lines.append(f"🍎 <b>App Store:</b> {esc(appstore)}")
+
+          if repo_url:
+            lines.append(f"📦 <b>Repository URL:</b> {esc(repo_url)}")
+
+          text = "\n".join(lines)
+
+          # GitHub Actions output needs %0A for newlines
+          print("text=" + text.replace("\n", "%0A"))
+          PY
+
+      - name: Send Telegram message
+        if: steps.changed.outputs.file != ''
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "parse_mode=HTML" \
+            -d "disable_web_page_preview=true" \
+            -d "text=${{ steps.msg.outputs.text }}"
