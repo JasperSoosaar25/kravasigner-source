@@ -22,18 +22,17 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y jq
 
-          # Handle previous commit
+          # Previous commit
           git checkout HEAD~1 -- "My KravaSigner Source_3.json" 2>/dev/null || echo "No previous"
           if [ -f "My KravaSigner Source_3.json" ]; then cp "My KravaSigner Source_3.json" old.json; else touch old.json; fi
 
-          # Current commit
+          # Current
           git checkout HEAD -- "My KravaSigner Source_3.json"
           cp "My KravaSigner Source_3.json" new.json
 
           jq '.apps // []' old.json > old_apps.json
           jq '.apps // []' new.json > new_apps.json
 
-          # Get only new app names
           comm -23 <(jq -r '.[].name // empty' new_apps.json | sort) <(jq -r '.[].name // empty' old_apps.json | sort) > new_app_names.txt
 
           if [ ! -s new_app_names.txt ]; then
@@ -52,28 +51,28 @@ jobs:
             SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No description"')
             DEVELOPER=$(echo "$APP" | jq -r '.developerName')
             VERSION=$(echo "$APP" | jq -r '.versions[0].version // "Unknown"')
+            ICON_URL=$(echo "$APP" | jq -r '.iconURL')
             MARKETPLACE_ID=$(echo "$APP" | jq -r '.marketplaceID // ""')
             APPSTORE_LINK="https://apps.apple.com/us/app/id$MARKETPLACE_ID"
             [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store link"
 
-            MESSAGE="🐮 *New tweaked/modded IPA available!* 🚀\n\n"
-            MESSAGE="${MESSAGE}*$TITLE*\n"
-            MESSAGE="${MESSAGE}$SUBTITLE\n"
-            MESSAGE="${MESSAGE}$DEVELOPER\n"
-            MESSAGE="${MESSAGE}Version: $VERSION\n"
-            MESSAGE="${MESSAGE}*Repository:*\n$REPO_URL\n"
-            MESSAGE="${MESSAGE}*App Store Link:*\n$APPSTORE_LINK"
+            CAPTION="🐮 *New tweaked/modded IPA available!* 🚀\n\n"
+            CAPTION="${CAPTION}*$TITLE*\n"
+            CAPTION="${CAPTION}$SUBTITLE\n"
+            CAPTION="${CAPTION}$DEVELOPER\n"
+            CAPTION="${CAPTION}Version: $VERSION\n"
+            CAPTION="${CAPTION}*Repository:*\n$REPO_URL\n"
+            CAPTION="${CAPTION}*App Store Link:*\n$APPSTORE_LINK"
 
-            # Send one message per app
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            # Send photo (icon) with caption
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="$MESSAGE" \
+              -d photo="$ICON_URL" \
+              -d caption="$CAPTION" \
               -d parse_mode=Markdown \
               -d disable_web_page_preview=true
 
-            # Small delay to avoid rate limits
-            sleep 1
-
+            sleep 1  # Avoid rate limits
           done < new_app_names.txt
 
-          echo "All notifications sent!"
+          echo "All notifications with icons sent!"
