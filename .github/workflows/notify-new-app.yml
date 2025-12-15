@@ -49,27 +49,19 @@ jobs:
             SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No description"')
             DEVELOPER=$(echo "$APP" | jq -r '.developerName')
             VERSION=$(echo "$APP" | jq -r '.versions[0].version // "Unknown"')
-            ICON_URL=$(echo "$APP" | jq -r '.iconURL')
             MARKETPLACE_ID=$(echo "$APP" | jq -r '.marketplaceID // ""')
             APPSTORE_LINK="https://apps.apple.com/us/app/id$MARKETPLACE_ID"
             [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store link"
 
-            CAPTION="🐮 *New tweaked/modded IPA available!* 🚀\n\n"
-            CAPTION+ "*$TITLE*\n"
-            CAPTION+="$SUBTITLE\n"
-            CAPTION+="$DEVELOPER\n"
-            CAPTION+="Version: $VERSION\n"
-            CAPTION+="*Repository:*\n$REPO_URL\n"
-            CAPTION+="*App Store Link:*\n$APPSTORE_LINK"
+            MESSAGE="🐮 *New tweaked/modded IPA available!* 🚀\n\n*$TITLE*\n$SUBTITLE\n$DEVELOPER\nVersion: $VERSION\n*Repository:*\n$REPO_URL\n*App Store Link:*\n$APPSTORE_LINK"
 
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto" \
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d photo="$ICON_URL" \
-              -d caption="$CAPTION" \
+              -d text="$MESSAGE" \
               -d parse_mode=Markdown \
               -d disable_web_page_preview=true
 
             sleep 2
           done < new_app_names.txt
 
-          echo "Flawless notifications sent!"
+          echo "Success: Notifications sent!"
