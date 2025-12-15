@@ -1,24 +1,80 @@
-name: Notify Telegram on Push
+name: Notify Telegram on New App
 
 on:
   push:
-    branches: [ main ]  # Change to your default branch if it's not 'main' (e.g., 'master')
+    branches: [ main ]  # Change if your default branch is different
+    paths:
+      - 'My KravaSigner Source_3.json'  # Only trigger when the apps JSON changes
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send message to Telegram
-        uses: appleboy/telegram-action@master
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          message: |
-            🐮 New update in KravaSigner repo! 🚀
+          fetch-depth: 2  # Needed to compare with previous commit
 
-            Commit by: ${{ github.actor }}
-            Message: ${{ github.event.commits[0].message }}
+      - name: Detect new apps and send to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Install jq for easy JSON handling
+          sudo apt-get update && sudo apt-get install -y jq
 
-            View changes: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+          # Copy old and new versions of the JSON file
+          git checkout HEAD~1 -- "My KravaSigner Source_3.json" || exit 0
+          cp "My KravaSigner Source_3.json" old.json 2>/dev/null || touch old.json
+          git checkout HEAD -- "My KravaSigner Source_3.json"
+          cp "My KravaSigner Source_3.json" new.json
 
-            Check out the latest apps!
+          # Extract apps arrays
+          jq '.apps // empty' old.json > old_apps.json
+          jq '.apps // empty' new.json > new_apps.json
+
+          # Get sorted list of app names (unique identifier)
+          comm -23 <(jq -r '.[].name // empty' new_apps.json | sort) <(jq -r '.[].name // empty' old_apps.json | sort) > new_app_names.txt
+
+          if [ ! -s new_app_names.txt ]; then
+            echo "No new apps detected – skipping notification."
+            exit 0
+          fi
+
+          MESSAGE="🐮 *New tweaked/modded IPA(s) available!* 🚀\n\n"
+
+          while read APP_NAME; do
+            [ -z "$APP_NAME" ] && continue
+
+            # Extract the full app object
+            APP=$(jq -r --arg name "$APP_NAME" '.apps[] | select(.name == $name)' new.json)
+
+            TITLE=$(echo "$APP" | jq -r '.name')
+            SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No description"')
+            DEVELOPER=$(echo "$APP" | jq -r '.developerName')
+            VERSION=$(echo "$APP" | jq -r '.versions[0].version // "Unknown"')
+            MARKETPLACE_ID=$(echo "$APP" | jq -r '.marketplaceID // ""')
+            APPSTORE_LINK="https://apps.apple.com/us/app/id$MARKETPLACE_ID"
+            [ "$MARKETPLACE_ID" = "" ] && APPSTORE_LINK="No App Store ID"
+
+            MESSAGE="${MESSAGE}*$TITLE*\n"
+            MESSAGE="${MESSAGE}$SUBTITLE\n"
+            MESSAGE="${MESSAGE}$DEVELOPER\n"
+            MESSAGE="${MESSAGE}Version: $VERSION\n"
+            MESSAGE="${MESSAGE}App Store Link: $APPSTORE_LINK\n\n"
+
+          done < new_app_names.txt
+
+          MESSAGE="${MESSAGE}*Repository Source:*\nhttps://raw.githubusercontent.com/JasperSoosaar25/kravasigner-source/main/My%20KravaSigner%20Source_3.json\n\n"
+          MESSAGE="${MESSAGE}Commit by: ${{ github.actor }}\n"
+          MESSAGE="${MESSAGE}View changes: https://github.com/${{ github.repository }}/commit/${{ github.sha }}\n"
+          MESSAGE="${MESSAGE}Check out the latest apps in KravaSigner! 🐮"
+
+          # Send the message
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="$MESSAGE" \
+            -d parse_mode=Markdown \
+            -d disable_web_page_preview=true
+
+          echo "Notification sent!"
