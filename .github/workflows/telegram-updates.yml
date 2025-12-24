@@ -2,9 +2,9 @@ name: KravaSigner New App Update
 
 on:
   push:
-    branches: [ main ]  # Change if your default branch is different
+    branches: [ main ]  # Change if your branch is different
     paths:
-      - '**.json'  # Only run if the JSON file changes (adjust path if needed, e.g. 'apps.json')
+      - '**/*.json'  # Adjust if needed, e.g. 'source.json'
 
 jobs:
   notify-telegram:
@@ -13,69 +13,67 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Needed to compare with previous commit
+          fetch-depth: 2  # To access previous commit
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect changed apps and notify
+      - name: Detect and notify new/updated apps
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Install jq for JSON parsing
-          sudo apt-get update && sudo apt-get install -y jq
+          # Set your JSON file path here (e.g., 'source.json' or 'apps.json' – check your repo)
+          JSON_FILE="source.json"  # <<< CHANGE THIS TO YOUR ACTUAL FILE NAME!!!
 
-          # Get the JSON file name (assuming it's the only .json or name it explicitly)
-          JSON_FILE=$(git diff --name-only HEAD~1 HEAD | grep '.json$' | head -1)
-          if [ -z "$JSON_FILE" ]; then
-            echo "No JSON file changed, skipping."
+          if ! git diff --quiet HEAD~1 HEAD -- "$JSON_FILE"; then
+            echo "No changes in $JSON_FILE, skipping."
             exit 0
           fi
 
-          # Get previous and current versions of the file
-          git checkout HEAD~1 -- "$JSON_FILE" -q
-          cp "$JSON_FILE" old.json
-          git checkout HEAD -- "$JSON_FILE" -q
+          # Get previous and current JSON
+          git show HEAD~1:"$JSON_FILE" > old.json || echo "{}" > old.json
+          cp "$JSON_FILE" new.json
 
-          # Extract apps as bundleID keys for easy comparison
-          jq -c '.apps[] | {(.bundleIdentifier): .}' old.json > old_apps.json
-          jq -c '.apps[] | {(.bundleIdentifier): .}' "$JSON_FILE" > new_apps.json
+          # Extract changed bundle IDs (new or modified apps)
+          OLD_BUNDLES=$(jq -r '.apps[].bundleIdentifier' old.json | sort | tr '\n' ' ')
+          NEW_BUNDLES=$(jq -r '.apps[].bundleIdentifier' new.json | sort | tr '\n' ' ')
 
-          # Find new or updated apps
-          CHANGES=$(comm -13 <(jq -r 'keys[]' old_apps.json | sort) <(jq -r 'keys[]' new_apps.json | sort))
+          CHANGES=$(comm -13 <(echo "$OLD_BUNDLES") <(echo "$NEW_BUNDLES") | tr -d ' ')
+
           if [ -z "$CHANGES" ]; then
-            echo "No new or updated apps detected."
+            echo "No new or significantly updated apps detected."
             exit 0
           fi
 
-          # Build message for each changed app
-          MESSAGE="🆕 *New/Updated App in KravaSigner!*\n\n"
+          MESSAGE="🆕 *New/Updated App(s) in KravaSigner!*\n\n"
+
           for bundle in $CHANGES; do
-            APP=$(jq -r ".[\"$bundle\"]" new_apps.json)
+            APP=$(jq -r --arg b "$bundle" '.apps[] | select(.bundleIdentifier == $b)' new.json)
+
             NAME=$(echo "$APP" | jq -r '.name')
-            SUBTITLE=$(echo "$APP" | jq -r '.subtitle')
+            SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No subtitle"')
             DEVELOPER=$(echo "$APP" | jq -r '.developerName')
-            DESC=$(echo "$APP" | jq -r '.localizedDescription' | head -c 300)  # Truncate long desc
-            VERSION=$(echo "$APP" | jq -r '.versions[-1].version')  # Latest version
+            DESC=$(echo "$APP" | jq -r '.localizedDescription' | head -c 300)
+            [ "$(echo "$DESC" | wc -c)" -eq 300 ] && DESC="${DESC}..."
+            VERSION=$(echo "$APP" | jq -r '.versions[-1].version')
             MARKET_ID=$(echo "$APP" | jq -r '.marketplaceID')
 
             MESSAGE="${MESSAGE}*${NAME}*\n"
             MESSAGE="${MESSAGE}Subtitle: ${SUBTITLE}\n"
-            MESSAGE="${MESSAGE}Bundle ID: \`${bundle}\`\n"
-            MESSAGE="${MESSAGE}App Store ID: ${MARKET_ID}\n"
+            MESSAGE="${MESSAGE}Bundle Identifier: \`${bundle}\`\n"
+            MESSAGE="${MESSAGE}Marketplace ID: ${MARKET_ID}\n"
             MESSAGE="${MESSAGE}Developer: ${DEVELOPER}\n"
             MESSAGE="${MESSAGE}Version: ${VERSION}\n"
-            MESSAGE="${MESSAGE}Description: ${DESC}...\n\n"
+            MESSAGE="${MESSAGE}Description: ${DESC}\n\n"
+            MESSAGE="${MESSAGE}[View in Repo](https://github.com/YOURUSERNAME/YOURREPO) 🚀\n\n"  # Optional link
           done
 
-          # Send to Telegram (with Markdown formatting)
+          # Send message
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="${MESSAGE}" \
             -d parse_mode="Markdown" \
             -d disable_web_page_preview=true
 
-          echo "Notification sent!"
+          echo "Notification sent successfully!"
