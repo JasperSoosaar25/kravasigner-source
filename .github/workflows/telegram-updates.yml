@@ -13,92 +13,83 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for safety
+          fetch-depth: 2
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect changed JSON and new/updated apps
+      - name: Detect and notify new/updated apps
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Find the changed JSON file(s)
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.json$' || echo "")
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No JSON files changed in this push."
+            echo "No JSON files changed."
             exit 0
           fi
 
-          MESSAGE="🆕 *New/Updated App(s) in KravaSigner Repo!*\n\n"
+          MESSAGE="🆕 *New or Updated App in KravaSigner!*\n\n"
+
+          HAS_CHANGES=false
 
           for JSON_FILE in $CHANGED_FILES; do
-            echo "Processing changed file: $JSON_FILE"
+            echo "Checking $JSON_FILE for app changes..."
 
-            # Get old version (if exists)
-            if git show HEAD~1:"$JSON_FILE" > old.json 2>/dev/null; then
-              HAS_OLD=true
-            else
-              echo "{}" > old.json
-              HAS_OLD=false
-            fi
+            # Get old and new JSON
+            git show HEAD~1:"$JSON_FILE" > old.json 2>/dev/null || echo "{}" > old.json
             cp "$JSON_FILE" new.json
 
-            # Get bundle IDs from old and new
-            OLD_BUNDLES=$(jq -r '.apps[].bundleIdentifier // empty' old.json | sort -u)
-            NEW_BUNDLES=$(jq -r '.apps[].bundleIdentifier // empty' new.json | sort -u)
+            # Extract all apps as "bundleID: json_string"
+            jq -r '.apps[]? | "\(.bundleIdentifier):\(tojson)"' old.json > old_apps.txt || touch old_apps.txt
+            jq -r '.apps[]? | "\(.bundleIdentifier):\(tojson)"' new.json > new_apps.txt
 
-            # New apps
-            NEW_APPS=$(comm -13 <(echo "$OLD_BUNDLES") <(echo "$NEW_BUNDLES"))
+            # New apps (in new but not old)
+            NEW_BUNDLES=$(comm -13 old_apps.txt new_apps.txt | cut -d: -f1)
 
-            # Potentially updated apps (exist in both, but we'll check if the app object changed)
-            COMMON_APPS=$(comm -12 <(echo "$OLD_BUNDLES") <(echo "$NEW_BUNDLES"))
-
-            UPDATED_APPS=""
-            for bundle in $COMMON_APPS; do
-              OLD_APP=$(jq -r --arg b "$bundle" '.apps[] | select(.bundleIdentifier == $b)' old.json)
-              NEW_APP=$(jq -r --arg b "$bundle" '.apps[] | select(.bundleIdentifier == $b)' new.json)
+            # Existing apps that changed
+            UPDATED_BUNDLES=""
+            for bundle in $(jq -r '.apps[].bundleIdentifier // empty' new.json); do
+              OLD_APP=$(grep "^$bundle:" old_apps.txt | cut -d: -f2- || echo "")
+              NEW_APP=$(grep "^$bundle:" new_apps.txt | cut -d: -f2-)
               if [ "$OLD_APP" != "$NEW_APP" ]; then
-                UPDATED_APPS="$UPDATED_APPS $bundle"
+                UPDATED_BUNDLES="$UPDATED_BUNDLES $bundle"
               fi
             done
 
-            CHANGES="$NEW_APPS$UPDATED_APPS"
+            ALL_CHANGED="$NEW_BUNDLES$UPDATED_BUNDLES"
 
-            if [ -z "$CHANGES" ]; then
-              echo "No new or updated apps in $JSON_FILE"
-              continue
+            if [ -n "$ALL_CHANGED" ]; then
+              HAS_CHANGES=true
+              for bundle in $ALL_CHANGED; do
+                APP_JSON=$(grep "^$bundle:" new_apps.txt | cut -d: -f2-)
+                NAME=$(echo "$APP_JSON" | jq -r '.name')
+                ICON=$(echo "$APP_JSON" | jq -r '.iconURL // empty')
+                SUBTITLE=$(echo "$APP_JSON" | jq -r '.subtitle // "No subtitle"')
+                DEVELOPER=$(echo "$APP_JSON" | jq -r '.developerName')
+                DESC=$(echo "$APP_JSON" | jq -r '.localizedDescription // "No description"' | sed 's/"/\\"/g' | cut -c1-400)
+                [ ${#DESC} -ge 400 ] && DESC="${DESC}..."
+                VERSION=$(echo "$APP_JSON" | jq -r '.versions[-1].version // "Unknown"')
+                MARKET_ID=$(echo "$APP_JSON" | jq -r '.marketplaceID // "N/A"')
+
+                MESSAGE="${MESSAGE}${ICON} *${NAME}*\n"
+                MESSAGE="${MESSAGE}_Subtitle:_ ${SUBTITLE}\n"
+                MESSAGE="${MESSAGE}_Bundle ID:_ \`${bundle}\`\n"
+                MESSAGE="${MESSAGE}_Developer:_ ${DEVELOPER}\n"
+                MESSAGE="${MESSAGE}_Version:_ ${VERSION}\n"
+                MESSAGE="${MESSAGE}_App Store:_ https://apps.apple.com/app/id${MARKET_ID}\n"
+                MESSAGE="${MESSAGE}_Description:_ ${DESC}\n\n"
+              done
             fi
-
-            for bundle in $CHANGES; do
-              APP=$(jq -r --arg b "$bundle" '.apps[] | select(.bundleIdentifier == $b)' new.json)
-
-              NAME=$(echo "$APP" | jq -r '.name')
-              SUBTITLE=$(echo "$APP" | jq -r '.subtitle // "No subtitle"')
-              DEVELOPER=$(echo "$APP" | jq -r '.developerName')
-              DESC=$(echo "$APP" | jq -r '.localizedDescription' | sed ':a;N;$!ba;s/\n/ /g' | cut -c1-300)
-              [ ${#DESC} -eq 300 ] && DESC="${DESC}..."
-              VERSION=$(echo "$APP" | jq -r '.versions[-1].version // "Unknown"')
-              MARKET_ID=$(echo "$APP" | jq -r '.marketplaceID // "N/A"')
-
-              MESSAGE="${MESSAGE}*${NAME}* (${bundle})\n"
-              MESSAGE="${MESSAGE}Subtitle: ${SUBTITLE}\n"
-              MESSAGE="${MESSAGE}Developer: ${DEVELOPER}\n"
-              MESSAGE="${MESSAGE}Version: ${VERSION}\n"
-              MESSAGE="${MESSAGE}Marketplace ID: ${MARKET_ID}\n"
-              MESSAGE="${MESSAGE}Description: ${DESC}\n\n"
-            done
           done
 
-          if echo "$MESSAGE" | grep -q "New/Updated App(s)"; then
-            # Send to Telegram
+          if $HAS_CHANGES; then
             curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
               -d chat_id="${TELEGRAM_CHAT_ID}" \
               -d text="${MESSAGE}" \
               -d parse_mode="Markdown" \
-              -d disable_web_page_preview=true
-
-            echo "Notification sent!"
+              -d disable_web_page_preview=false  # false so icon previews
+            echo "Full notification sent!"
           else
-            echo "No app changes detected across all files."
+            echo "JSON changed but no new/updated apps detected — no notification sent."
           fi
