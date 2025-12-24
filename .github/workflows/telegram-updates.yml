@@ -18,89 +18,83 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect and notify per app
+      - name: Detect and notify each changed app
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          # Get changed JSON files
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.json$' || echo "")
           if [ -z "$CHANGED_FILES" ]; then
             echo "No JSON files changed."
             exit 0
           fi
 
-          HAS_ANY_CHANGE=false
-
           for JSON_FILE in $CHANGED_FILES; do
-            echo "Checking $JSON_FILE..."
+            echo "Processing $JSON_FILE"
 
+            # Get old and new content
             git show HEAD~1:"$JSON_FILE" > old.json 2>/dev/null || echo '{"apps":[]}' > old.json
             cp "$JSON_FILE" new.json
 
-            # Map bundleID to full app JSON string
-            jq -r '.apps[]? | "\(.bundleIdentifier):\(tojson)"' old.json > old_apps.txt || touch old_apps.txt
-            jq -r '.apps[]? | "\(.bundleIdentifier):\(tojson)"' new.json > new_apps.txt
+            # Extract bundle:canonical_app_json (sorted keys for reliable comparison)
+            jq -S -c '.apps[]? | {bundle: .bundleIdentifier, app: .}' old.json | jq -r '"\(.bundle):\(.app | tojson)"' > old_apps.txt || touch old_apps.txt
+            jq -S -c '.apps[]? | {bundle: .bundleIdentifier, app: .}' new.json | jq -r '"\(.bundle):\(.app | tojson)"' > new_apps.txt
 
-            # New bundles
-            NEW_BUNDLES=$(comm -13 <(cut -d: -f1 old_apps.txt | sort) <(cut -d: -f1 new_apps.txt | sort))
+            # All bundles in new
+            ALL_NEW_BUNDLES=$(cut -d: -f1 new_apps.txt | sort -u)
 
-            # Updated bundles
-            UPDATED_BUNDLES=""
-            for bundle in $(cut -d: -f1 new_apps.txt); do
-              OLD_APP=$(grep "^$bundle:" old_apps.txt | cut -d: -f2- || echo "")
-              NEW_APP=$(grep "^$bundle:" new_apps.txt | cut -d: -f2-)
-              if [ "$OLD_APP" != "$NEW_APP" ]; then
-                UPDATED_BUNDLES="$UPDATED_BUNDLES $bundle"
+            for bundle in $ALL_NEW_BUNDLES; do
+              OLD_LINE=$(grep "^$bundle:" old_apps.txt || echo "")
+              NEW_LINE=$(grep "^$bundle:" new_apps.txt)
+
+              if [ -z "$OLD_LINE" ]; then
+                CHANGE_TYPE="NEW"
+              elif [ "$OLD_LINE" = "$NEW_LINE" ]; then
+                continue  # No change, skip
+              else
+                CHANGE_TYPE="UPDATED"
               fi
+
+              # Extract app details from new
+              APP_JSON=$(echo "$NEW_LINE" | cut -d: -f2-)
+
+              NAME=$(echo "$APP_JSON" | jq -r '.name')
+              ICON=$(echo "$APP_JSON" | jq -r '.iconURL // ""')
+              SUBTITLE=$(echo "$APP_JSON" | jq -r '.subtitle // "No subtitle"')
+              DEVELOPER=$(echo "$APP_JSON" | jq -r '.developerName // "Unknown"')
+              DESC=$(echo "$APP_JSON" | jq -r '.localizedDescription // "No description"' | sed 's/"/\\"/g' | cut -c1-500)
+              [ ${#DESC} -eq 500 ] && DESC="${DESC}..."
+              VERSION=$(echo "$APP_JSON" | jq -r '.versions[-1].version // "Unknown"')
+              MARKET_ID=$(echo "$APP_JSON" | jq -r '.marketplaceID // ""')
+
+              # Escape Markdown
+              ESC() { echo "$1" | sed -e 's/[*_`[\]\\]/\\&/g'; }
+              ESC_NAME=$(ESC "$NAME")
+              ESC_SUB=$(ESC "$SUBTITLE")
+              ESC_DEV=$(ESC "$DEVELOPER")
+              ESC_DESC=$(ESC "$DESC")
+
+              MESSAGE="🆕 *$CHANGE_TYPE APP IN KRAVASIGNER!*\n\n"
+              MESSAGE+="${ICON} *${ESC_NAME}*\n\n"
+              MESSAGE+="_Subtitle:_ ${ESC_SUB}\n"
+              MESSAGE+="_Bundle ID:_ \`${bundle}\`\n"
+              MESSAGE+="_Developer:_ ${ESC_DEV}\n"
+              MESSAGE+="_Latest Version:_ ${VERSION}\n"
+              if [ -n "$MARKET_ID" ]; then
+                MESSAGE+="_App Store:_ https://apps.apple.com/app/id${MARKET_ID}\n"
+              fi
+              MESSAGE+="_Description:_ ${ESC_DESC}"
+
+              # Send one message per app
+              curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+                -d chat_id="${TELEGRAM_CHAT_ID}" \
+                -d text="${MESSAGE}" \
+                -d parse_mode="Markdown" \
+                -d disable_web_page_preview=false
+
+              echo "Sent $CHANGE_TYPE notification for $NAME"
             done
-
-            ALL_CHANGED="$NEW_BUNDLES $UPDATED_BUNDLES"
-
-            if [ -n "$ALL_CHANGED" ]; then
-              HAS_ANY_CHANGE=true
-              for bundle in $ALL_CHANGED; do
-                APP_JSON=$(grep "^$bundle:" new_apps.txt | cut -d: -f2-)
-
-                NAME=$(echo "$APP_JSON" | jq -r '.name // "Unknown"')
-                ICON=$(echo "$APP_JSON" | jq -r '.iconURL // ""')
-                SUBTITLE=$(echo "$APP_JSON" | jq -r '.subtitle // "No subtitle"')
-                DEVELOPER=$(echo "$APP_JSON" | jq -r '.developerName // "Unknown"')
-                DESC_RAW=$(echo "$APP_JSON" | jq -r '.localizedDescription // "No description"')
-                DESC=$(echo "$DESC_RAW" | sed 's/"/\\"/g' | cut -c1-600)
-                [ ${#DESC} -eq 600 ] && DESC="${DESC}..."
-                VERSION=$(echo "$APP_JSON" | jq -r '.versions[-1].version // "Unknown"')
-                MARKET_ID=$(echo "$APP_JSON" | jq -r '.marketplaceID // "N/A"')
-
-                # Escape Markdown special chars in text fields
-                ESCAPE() { echo "$1" | sed -e 's/[\\*_`[\]]/\\&/g'; }
-                ESC_NAME=$(ESCAPE "$NAME")
-                ESC_SUB=$(ESCAPE "$SUBTITLE")
-                ESC_DEV=$(ESCAPE "$DEVELOPER")
-                ESC_DESC=$(ESCAPE "$DESC")
-
-                MESSAGE="🆕 *New/Updated App in KravaSigner!*\n\n"
-                MESSAGE+="${ICON} *${ESC_NAME}*\n"
-                MESSAGE+="_Subtitle:_ ${ESC_SUB}\n"
-                MESSAGE+="_Bundle ID:_ \`${bundle}\`\n"
-                MESSAGE+="_Developer:_ ${ESC_DEV}\n"
-                MESSAGE+="_Version:_ ${VERSION}\n"
-                if [ "$MARKET_ID" != "N/A" ]; then
-                  MESSAGE+="_App Store:_ https://apps.apple.com/app/id${MARKET_ID}\n"
-                fi
-                MESSAGE+="_Description:_ ${ESC_DESC}"
-
-                # Send individual message for this app
-                curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
-                  -d chat_id="${TELEGRAM_CHAT_ID}" \
-                  -d text="${MESSAGE}" \
-                  -d parse_mode="Markdown" \
-                  -d disable_web_page_preview=false
-
-                echo "Sent message for $NAME"
-              done
-            fi
           done
 
-          if ! $HAS_ANY_CHANGE; then
-            echo "No app changes detected — nothing sent."
-          fi
+          echo "Done."
