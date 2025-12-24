@@ -72,17 +72,15 @@
           }
         ]
       },
-      "versions": [
-        {
-          "downloadURL": "https://pub-62165c9f78864efe94b9f51de0021312.r2.dev/DiuTube/v20.32.4/DiuTube_20.32.4_16.0_LeTi.ipa",
-          "size": 118900000,
-          "version": "20.32.4",
-          "buildVersion": "",
-          "date": "2025-12-15",
-          "localizedDescription": "Tweaked/modded YouTube with subscription unlocked!\n\nInitial release of the tweaked version based on v20.32.4.",
-          "minOSVersion": "16.0"
-        }
-      ],
+      ,
+{
+  "downloadURL": "https://example.com/test.ipa",
+  "size": 120000000,
+  "version": "99.99.9",
+  "date": "2025-12-24",
+  "localizedDescription": "Test trigger",
+  "minOSVersion": "16.0"
+}
       "appPermissions": {
         "entitlements": [],
         "privacy": {
