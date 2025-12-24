@@ -80,7 +80,7 @@ jobs:
                   developer = subtitle = description = app_id = 'N/A (Not on App Store)'
                   link = ipa_url
               
-              message = """🆕 **New App Added to KravaSigner!**
+              message = """**New App Added to KravaSigner!** 🆕
 
 **Name:** %s
 **Bundle ID:** %s
