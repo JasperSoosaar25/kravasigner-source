@@ -1,0 +1,98 @@
+name: New App Notification
+
+on:
+  push:
+    branches: [ main ]  # or your default branch
+    paths:
+      - '**/*.ipa'  # Only trigger if .ipa files change
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Find new IPA files
+        id: find_ipa
+        run: |
+          git fetch --all
+          NEW_IPAS=$(git diff --name-only HEAD~1 HEAD | grep '\.ipa$' || echo "")
+          echo "new_ipas=$NEW_IPAS" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        if: steps.find_ipa.outputs.new_ipas != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        if: steps.find_ipa.outputs.new_ipas != ''
+        run: pip install requests biplist  # biplist for plist parsing
+
+      - name: Process and notify
+        if: steps.find_ipa.outputs.new_ipas != ''
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPO: ${{ github.repository }}
+        run: |
+          python << EOF
+          import requests
+          import zipfile
+          import biplist
+          import os
+          import json
+
+          new_ipas = "${{ steps.find_ipa.outputs.new_ipas }}".split()
+          raw_base = f"https://raw.githubusercontent.com/{os.environ['REPO']}/{os.environ['GITHUB_SHA']}"
+
+          for ipa_path in new_ipas:
+              ipa_url = f"{raw_base}/{ipa_path}"
+              ipa_data = requests.get(ipa_url).content
+              with open("temp.ipa", "wb") as f:
+                  f.write(ipa_data)
+              
+              with zipfile.ZipFile("temp.ipa") as z:
+                  for name in z.namelist():
+                      if name.endswith("/Info.plist"):
+                          plist_data = z.read(name)
+                          info = biplist.readPlistFromString(plist_data)
+                          name = info.get('CFBundleDisplayName') or info.get('CFBundleName')
+                          bundle_id = info['CFBundleIdentifier']
+                          version = info.get('CFBundleShortVersionString') or info['CFBundleVersion']
+                          break
+              
+              # App Store lookup
+              lookup = requests.get(f"https://itunes.apple.com/lookup?bundleId={bundle_id}").json()
+              if lookup.get('resultCount', 0) > 0:
+                  app = lookup['results'][0]
+                  developer = app.get('artistName', 'N/A')
+                  subtitle = app.get('subtitle', 'N/A')  # or genres[0] if needed
+                  description = app['description']
+                  app_id = app['trackId']
+                  link = app['trackViewUrl']
+              else:
+                  developer = subtitle = description = app_id = 'N/A (Not on App Store)'
+                  link = ipa_url
+              
+              message = f"""
+New App Added to KravaSigner!
+
+**Name:** {name}
+**Bundle ID:** {bundle_id}
+**Version:** {version}
+**Developer:** {developer}
+**Subtitle:** {subtitle}
+**Description:** {description[:500]}...  # Truncate if too long
+**App Store ID:** {app_id}
+**Download/Link:** {link}
+              """
+              
+              requests.post(
+                  f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage",
+                  data={'chat_id': os.environ['TELEGRAM_CHAT_ID'], 'text': message, 'parse_mode': 'Markdown', 'disable_web_page_preview': True}
+              )
+              
+              os.remove("temp.ipa")
+          EOF
