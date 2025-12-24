@@ -71,7 +71,8 @@ jobs:
               if lookup.get('resultCount', 0) > 0:
                   app = lookup['results'][0]
                   developer = app.get('artistName', 'N/A')
-                  subtitle = app.get('subtitle', app.get('genres')[0] if app.get('genres') else 'N/A')
+                  genres = app.get('genres', [])
+                  subtitle = app.get('subtitle', genres[0] if genres else 'N/A')
                   description = app.get('description', 'N/A')
                   app_id = app['trackId']
                   link = app['trackViewUrl']
@@ -80,7 +81,7 @@ jobs:
                   link = ipa_url
               
               message = f"""
-🆕 **New App Added to KravaSigner!**
+**New App Added to KravaSigner!**
 
 **Name:** {app_name}
 **Bundle ID:** {bundle_id}
