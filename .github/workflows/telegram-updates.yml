@@ -19,7 +19,7 @@ jobs:
         run: |
           git checkout HEAD~1 -- My-KravaSigner-Working-Source_3.json || touch old.json
           cp My-KravaSigner-Working-Source_3.json new.json || echo "{}" > new.json
-          echo "{}" > old.json  # Fallback if no previous
+          echo "{}" > old.json
 
       - name: Parse and Post New Apps
         env:
@@ -46,23 +46,17 @@ jobs:
           old_bundles = {app.get('bundleIdentifier', '') for app in old_data.get('apps', [])}
           new_apps = new_data.get('apps', [])
 
-          new_entries = []
-          for app in new_apps:
-              bundle = app.get('bundleIdentifier')
-              if bundle and bundle not in old_bundles:
-                  new_entries.append(app)
+          new_entries = [app for app in new_apps if app.get('bundleIdentifier') not in old_bundles]
 
           if not new_entries:
               print("No new apps detected. Skipping post.")
               sys.exit(0)
 
-          print(f"Found {len(new_entries)} new app(s)! Posting to Telegram...")
+          print(f"Found {len(new_entries)} new app(s)!")
 
-          # Headers to bypass Imgur anti-hotlink/bot protection
           headers = {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-              'Referer': 'https://imgur.com/',
-              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://imgur.com/'
           }
 
           for app in new_entries:
@@ -71,10 +65,9 @@ jobs:
               dev = app.get('developerName', 'Unknown')
               subtitle = app.get('subtitle', '')
               desc = app.get('localizedDescription', 'No description')
-              versions = app.get('versions', [])
-              version = versions[0].get('version', 'Unknown') if versions else 'Unknown'
+              version = app['versions'][0].get('version', 'Unknown') if app.get('versions') else 'Unknown'
               app_store_id = app.get('marketplaceID', '')
-              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # Fallback to your cute cow
+              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')
 
               message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
                         f"<b>Name:</b> {name}\n" \
@@ -85,61 +78,34 @@ jobs:
                         f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
                         f"<b>Description:</b>\n{desc}"
 
-              # Try sendPhoto with direct URL (now works with headers!)
+              # Download icon binary
               try:
-                  response = requests.post(
-                      f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
-                      data={
-                          'chat_id': os.environ['CHANNEL_ID'],
-                          'photo': icon_url,
-                          'caption': message,
-                          'parse_mode': 'HTML'
-                      },
-                      headers=headers  # Pass headers so Telegram fetches the image properly
-                  )
-
-                  if response.status_code == 200:
-                      print(f"Successfully posted {name} with photo!")
-                      continue  # Success!
-
-                  print(f"sendPhoto failed ({response.status_code}): {response.text}")
-              except Exception as e:
-                  print(f"Error with sendPhoto: {e}")
-
-              # Fallback: Download icon ourselves and send as photo (uploaded)
-              try:
-                  icon_response = requests.get(icon_url, headers=headers, timeout=15)
-                  icon_response.raise_for_status()
-                  if 'text/html' in icon_response.headers.get('Content-Type', ''):
+                  icon_resp = requests.get(icon_url, headers=headers, timeout=15)
+                  icon_resp.raise_for_status()
+                  if 'text/html' in icon_resp.headers.get('Content-Type', ''):
                       raise Exception("HTML error page")
-                  icon_content = icon_response.content
-
-                  files = {'photo': ('icon.png', icon_content, 'image/png')}
-                  response = requests.post(
-                      f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
-                      data={
-                          'chat_id': os.environ['CHANNEL_ID'],
-                          'caption': message,
-                          'parse_mode': 'HTML'
-                      },
-                      files=files
-                  )
-
-                  if response.status_code == 200:
-                      print(f"Successfully posted {name} with uploaded photo fallback!")
-                  else:
-                      print(f"Fallback failed: {response.text}")
-                      sys.exit(1)
+                  icon_bytes = icon_resp.content
+                  icon_filename = "icon.png"
               except Exception as e:
-                  print(f"Total failure for {name}: {e}")
-                  # Last resort: text only
+                  print(f"Icon download failed: {e}")
+                  # Fallback text-only
                   requests.post(
                       f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
-                      data={
-                          'chat_id': os.environ['CHANNEL_ID'],
-                          'text': message + "\n\n(Icon failed to load 🥺)",
-                          'parse_mode': 'HTML'
-                      }
+                      data={'chat_id': os.environ['CHANNEL_ID'], 'text': message + "\n\n(Icon unavailable 🥺)", 'parse_mode': 'HTML'}
                   )
+                  continue
+
+              # Upload as photo data → bypasses geoblock!
+              files = {'photo': (icon_filename, icon_bytes, 'image/png')}
+              response = requests.post(
+                  f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
+                  data={'chat_id': os.environ['CHANNEL_ID'], 'caption': message, 'parse_mode': 'HTML'},
+                  files=files
+              )
+
+              if response.status_code == 200:
+                  print(f"Posted {name} with uploaded icon!")
+              else:
+                  print(f"Error: {response.text}")
 
           PY
