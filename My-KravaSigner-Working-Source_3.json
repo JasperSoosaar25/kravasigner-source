@@ -1,6 +1,6 @@
 {
-  "name": "My KravaSigner Source:3 3",
-  "subtitle": "A source of SOME (only SOME) tweaked/modded IPAs:33",
+  "name": "My KravaSigner Source:3",
+  "subtitle": "A source of SOME (only SOME) tweaked/modded IPAs:3",
   "description": "Welcome to my source! Here you'll find SOME (only SOME) tweaked/modded IPAs, I don’t think that I will ever be able to add all of the apps on the App Store, so yeah, but anyways:33",
   "iconURL": "https://i.imgur.com/DMZZBwR.png",
   "website": "",
@@ -263,44 +263,6 @@
           "NSMicrophoneUsageDescription": "Used for pairing with external devices",
           "NSPhotoLibraryAddUsageDescription": "Used for saving QR code"
         }
-      },
-      "patreon": {}
-    },
-    {
-      "name": "TEST APP - IGNORE",
-      "bundleIdentifier": "com.test.dummyapp",
-      "marketplaceID": "544007664",
-      "developerName": "Test Developer",
-      "subtitle": "This is a test - please ignore! :3",
-      "localizedDescription": "This is just a test entry to check if the Telegram bot posts automatically when a new app is added.\n\nPlease ignore or delete me soon! 🐮\n\n(Testing GitHub Actions on 2025-12-25)",
-      "iconURL": "https://i.imgur.com/DMZZBwR.png",
-      "tintColor": "#6156e2",
-      "category": "utilities",
-      "screenshotURLs": [
-        "https://i.imgur.com/DMZZBwR.png",
-        "https://i.imgur.com/DMZZBwR.png"
-      ],
-      "ipadScreenshotURLs": [],
-      "screenshots": {
-        "iphone": [
-          "https://i.imgur.com/DMZZBwR.png"
-        ],
-        "ipad": []
-      },
-      "versions": [
-        {
-          "downloadURL": "https://example.com/test.ipa",
-          "size": 1000000,
-          "version": "1.0.0",
-          "buildVersion": "",
-          "date": "2025-12-25",
-          "localizedDescription": "Test version - do not download",
-          "minOSVersion": "15.0"
-        }
-      ],
-      "appPermissions": {
-        "entitlements": [],
-        "privacy": {}
       },
       "patreon": {}
     }
