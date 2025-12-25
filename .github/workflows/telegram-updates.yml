@@ -58,7 +58,6 @@ jobs:
 
           print(f"Found {len(new_entries)} new app(s)!")
 
-          # Plain raw URL only
           raw_url = "https://raw.githubusercontent.com/JasperSoosaar25/kravasigner-source/main/My-KravaSigner-Working-Source_3.json"
 
           headers = {
@@ -85,9 +84,9 @@ jobs:
                         f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
                         f"<b>Description:</b>\n{desc}\n\n" \
                         f"<b>Add this repo to KravaSigner / Esign etc.:</b>\n" \
-                        f"<code>{raw_url}</code>"
+                        f"<a href=\"{raw_url}\">{raw_url}</a>"
 
-              # Download and upload icon directly (geoblock bypass)
+              # Download and upload icon directly
               try:
                   icon_resp = requests.get(icon_url, headers=headers, timeout=15)
                   icon_resp.raise_for_status()
