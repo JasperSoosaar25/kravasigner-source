@@ -1,0 +1,71 @@
+name: KravaSigner New App Poster
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'My-KravaSigner-Working-Source_3.json'
+
+jobs:
+  post-to-telegram:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # To get previous commit
+
+      - name: Get previous JSON
+        run: |
+          git checkout HEAD~1 -- My-KravaSigner-Working-Source_3.json || echo "[]" > old.json
+          mv My-KravaSigner-Working-Source_3.json new.json || cp old.json new.json
+          cat old.json > old.json  # Ensure files exist
+
+      - name: Parse and Post New Apps
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: |
+          python - << 'PY'
+          import json
+          import requests
+          import os
+
+          with open('old.json', 'r', encoding='utf-8') as f:
+              old_data = json.load(f)
+          with open('new.json', 'r', encoding='utf-8') as f:
+              new_data = json.load(f)
+
+          old_bundles = {app['bundleIdentifier'] for app in old_data.get('apps', [])}
+          new_apps = new_data.get('apps', [])
+
+          for app in new_apps:
+              bundle = app['bundleIdentifier']
+              if bundle not in old_bundles:
+                  name = app['name']
+                  dev = app['developerName']
+                  subtitle = app['subtitle']
+                  desc = app['localizedDescription']
+                  version = app['versions'][0]['version'] if app.get('versions') else 'Unknown'
+                  app_store_id = app.get('marketplaceID', '')
+                  icon = app['iconURL']
+
+                  message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
+                            f"<b>Name:</b> {name}\n" \
+                            f"<b>Bundle ID:</b> <code>{bundle}</code>\n" \
+                            f"<b>Developer:</b> {dev}\n" \
+                            f"<b>Subtitle:</b> {subtitle}\n" \
+                            f"<b>Version:</b> {version}\n" \
+                            f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
+                            f"<b>Description:</b>\n{desc}"
+
+                  requests.post(
+                      f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
+                      data={
+                          'chat_id': os.environ['CHANNEL_ID'],
+                          'photo': icon,
+                          'caption': message,
+                          'parse_mode': 'HTML'
+                      }
+                  )
+          PY
