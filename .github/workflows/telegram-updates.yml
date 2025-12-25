@@ -31,6 +31,7 @@ jobs:
           import requests
           import os
           import sys
+          import urllib.parse
 
           def load_json(file_path):
               try:
@@ -54,6 +55,11 @@ jobs:
 
           print(f"Found {len(new_entries)} new app(s)!")
 
+          # Exact raw URL you specified
+          raw_url = "https://raw.githubusercontent.com/JasperSoosaar25/kravasigner-source/main/My-KravaSigner-Working-Source_3.json"
+          encoded_url = urllib.parse.quote(raw_url, safe='')
+          add_repo_url = f"altstore://source?url={encoded_url}"
+
           headers = {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Referer': 'https://imgur.com/'
@@ -67,18 +73,20 @@ jobs:
               desc = app.get('localizedDescription', 'No description')
               version = app['versions'][0].get('version', 'Unknown') if app.get('versions') else 'Unknown'
               app_store_id = app.get('marketplaceID', '')
-              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')
+              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # fallback to your cow
 
-              message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
+              message = f"<b>🐮 New App Added to My KravaSigner Repo!:3 🐮</b>\n\n" \
                         f"<b>Name:</b> {name}\n" \
                         f"<b>Bundle ID:</b> <code>{bundle}</code>\n" \
                         f"<b>Developer:</b> {dev}\n" \
                         f"<b>Subtitle:</b> {subtitle}\n" \
                         f"<b>Version:</b> {version}\n" \
                         f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
-                        f"<b>Description:</b>\n{desc}"
+                        f"<b>Description:</b>\n{desc}\n\n" \
+                        f"<b>Add this repo to KravaSigner / Scarlet / Esign etc.:</b>\n" \
+                        f"<code>{add_repo_url}</code>"
 
-              # Download icon binary
+              # Download icon and upload directly (bypasses Imgur geoblock)
               try:
                   icon_resp = requests.get(icon_url, headers=headers, timeout=15)
                   icon_resp.raise_for_status()
@@ -88,14 +96,14 @@ jobs:
                   icon_filename = "icon.png"
               except Exception as e:
                   print(f"Icon download failed: {e}")
-                  # Fallback text-only
+                  # Fallback: text-only post
                   requests.post(
                       f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
                       data={'chat_id': os.environ['CHANNEL_ID'], 'text': message + "\n\n(Icon unavailable 🥺)", 'parse_mode': 'HTML'}
                   )
                   continue
 
-              # Upload as photo data → bypasses geoblock!
+              # Send as uploaded photo → visible worldwide
               files = {'photo': (icon_filename, icon_bytes, 'image/png')}
               response = requests.post(
                   f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
@@ -104,8 +112,8 @@ jobs:
               )
 
               if response.status_code == 200:
-                  print(f"Posted {name} with uploaded icon!")
+                  print(f"Successfully posted {name}!")
               else:
-                  print(f"Error: {response.text}")
+                  print(f"Telegram error: {response.text}")
 
           PY
