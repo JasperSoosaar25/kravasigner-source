@@ -19,7 +19,7 @@ jobs:
         run: |
           git checkout HEAD~1 -- My-KravaSigner-Working-Source_3.json || touch old.json
           cp My-KravaSigner-Working-Source_3.json new.json || echo "{}" > new.json
-          echo "{}" > old.json
+          echo "{}" > old.json  # Safe fallback
 
       - name: Parse and Post New Apps
         env:
@@ -33,29 +33,36 @@ jobs:
           import sys
           import urllib.parse
 
-          def load_json(file_path):
+          def safe_load_json(file_path):
               try:
                   with open(file_path, 'r', encoding='utf-8') as f:
                       return json.load(f)
+              except json.JSONDecodeError as e:
+                  print(f"Invalid JSON in {file_path}: {e}")
+                  return {"apps": []}
               except Exception as e:
-                  print(f"Error loading {file_path}: {e}")
+                  print(f"Error reading {file_path}: {e}")
                   return {"apps": []}
 
-          old_data = load_json('old.json')
-          new_data = load_json('new.json')
+          old_data = safe_load_json('old.json')
+          new_data = safe_load_json('new.json')
 
-          old_bundles = {app.get('bundleIdentifier', '') for app in old_data.get('apps', [])}
+          old_bundles = {app.get('bundleIdentifier', '') for app in old_data.get('apps', []) if app.get('bundleIdentifier')}
           new_apps = new_data.get('apps', [])
 
-          new_entries = [app for app in new_apps if app.get('bundleIdentifier') not in old_bundles]
+          new_entries = []
+          for app in new_apps:
+              bundle = app.get('bundleIdentifier')
+              if bundle and bundle not in old_bundles and app.get('versions'):  # Extra check for valid app
+                  new_entries.append(app)
 
           if not new_entries:
-              print("No new apps detected. Skipping post.")
+              print("No valid new apps detected. Skipping post.")
               sys.exit(0)
 
-          print(f"Found {len(new_entries)} new app(s)!")
+          print(f"Found {len(new_entries)} valid new app(s)! Posting...")
 
-          # Exact raw URL you specified
+          # Exact URL you want
           raw_url = "https://raw.githubusercontent.com/JasperSoosaar25/kravasigner-source/main/My-KravaSigner-Working-Source_3.json"
           encoded_url = urllib.parse.quote(raw_url, safe='')
           add_repo_url = f"altstore://source?url={encoded_url}"
@@ -73,7 +80,7 @@ jobs:
               desc = app.get('localizedDescription', 'No description')
               version = app['versions'][0].get('version', 'Unknown') if app.get('versions') else 'Unknown'
               app_store_id = app.get('marketplaceID', '')
-              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # fallback to your cow
+              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')
 
               message = f"<b>🐮 New App Added to My KravaSigner Repo!:3 🐮</b>\n\n" \
                         f"<b>Name:</b> {name}\n" \
@@ -86,25 +93,22 @@ jobs:
                         f"<b>Add this repo to KravaSigner / Scarlet / Esign etc.:</b>\n" \
                         f"<code>{add_repo_url}</code>"
 
-              # Download icon and upload directly (bypasses Imgur geoblock)
+              # Download and upload icon directly
               try:
                   icon_resp = requests.get(icon_url, headers=headers, timeout=15)
                   icon_resp.raise_for_status()
                   if 'text/html' in icon_resp.headers.get('Content-Type', ''):
-                      raise Exception("HTML error page")
+                      raise Exception("HTML page received")
                   icon_bytes = icon_resp.content
-                  icon_filename = "icon.png"
               except Exception as e:
-                  print(f"Icon download failed: {e}")
-                  # Fallback: text-only post
+                  print(f"Icon failed ({icon_url}): {e}")
                   requests.post(
                       f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
                       data={'chat_id': os.environ['CHANNEL_ID'], 'text': message + "\n\n(Icon unavailable 🥺)", 'parse_mode': 'HTML'}
                   )
                   continue
 
-              # Send as uploaded photo → visible worldwide
-              files = {'photo': (icon_filename, icon_bytes, 'image/png')}
+              files = {'photo': ('icon.png', icon_bytes, 'image/png')}
               response = requests.post(
                   f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
                   data={'chat_id': os.environ['CHANNEL_ID'], 'caption': message, 'parse_mode': 'HTML'},
@@ -112,7 +116,7 @@ jobs:
               )
 
               if response.status_code == 200:
-                  print(f"Successfully posted {name}!")
+                  print(f"Posted {name} successfully!")
               else:
                   print(f"Telegram error: {response.text}")
 
