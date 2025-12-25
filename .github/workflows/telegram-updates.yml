@@ -13,13 +13,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # To get previous commit
+          fetch-depth: 2
 
-      - name: Get previous JSON
+      - name: Checkout previous version of JSON
         run: |
-          git checkout HEAD~1 -- My-KravaSigner-Working-Source_3.json || echo "[]" > old.json
-          mv My-KravaSigner-Working-Source_3.json new.json || cp old.json new.json
-          cat old.json > old.json  # Ensure files exist
+          git checkout HEAD~1 -- My-KravaSigner-Working-Source_3.json || touch old.json
+          cp My-KravaSigner-Working-Source_3.json new.json || echo "{}" > new.json
+          echo "{}" > old.json  # Fallback if no previous
 
       - name: Parse and Post New Apps
         env:
@@ -30,42 +30,68 @@ jobs:
           import json
           import requests
           import os
+          import sys
 
-          with open('old.json', 'r', encoding='utf-8') as f:
-              old_data = json.load(f)
-          with open('new.json', 'r', encoding='utf-8') as f:
-              new_data = json.load(f)
+          def load_json(file_path):
+              try:
+                  with open(file_path, 'r', encoding='utf-8') as f:
+                      return json.load(f)
+              except Exception as e:
+                  print(f"Error loading {file_path}: {e}")
+                  return {"apps": []}
 
-          old_bundles = {app['bundleIdentifier'] for app in old_data.get('apps', [])}
+          old_data = load_json('old.json')
+          new_data = load_json('new.json')
+
+          old_bundles = {app.get('bundleIdentifier', '') for app in old_data.get('apps', [])}
           new_apps = new_data.get('apps', [])
 
+          new_entries = []
           for app in new_apps:
-              bundle = app['bundleIdentifier']
-              if bundle not in old_bundles:
-                  name = app['name']
-                  dev = app['developerName']
-                  subtitle = app['subtitle']
-                  desc = app['localizedDescription']
-                  version = app['versions'][0]['version'] if app.get('versions') else 'Unknown'
-                  app_store_id = app.get('marketplaceID', '')
-                  icon = app['iconURL']
+              bundle = app.get('bundleIdentifier')
+              if bundle and bundle not in old_bundles:
+                  new_entries.append(app)
 
-                  message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
-                            f"<b>Name:</b> {name}\n" \
-                            f"<b>Bundle ID:</b> <code>{bundle}</code>\n" \
-                            f"<b>Developer:</b> {dev}\n" \
-                            f"<b>Subtitle:</b> {subtitle}\n" \
-                            f"<b>Version:</b> {version}\n" \
-                            f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
-                            f"<b>Description:</b>\n{desc}"
+          if not new_entries:
+              print("No new apps detected. Skipping post.")
+              sys.exit(0)
 
-                  requests.post(
-                      f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
-                      data={
-                          'chat_id': os.environ['CHANNEL_ID'],
-                          'photo': icon,
-                          'caption': message,
-                          'parse_mode': 'HTML'
-                      }
-                  )
+          print(f"Found {len(new_entries)} new app(s)! Posting to Telegram...")
+
+          for app in new_entries:
+              name = app.get('name', 'Unknown')
+              bundle = app.get('bundleIdentifier', 'Unknown')
+              dev = app.get('developerName', 'Unknown')
+              subtitle = app.get('subtitle', '')
+              desc = app.get('localizedDescription', 'No description')
+              versions = app.get('versions', [])
+              version = versions[0].get('version', 'Unknown') if versions else 'Unknown'
+              app_store_id = app.get('marketplaceID', '')
+              icon = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # Fallback to your cow icon
+
+              message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
+                        f"<b>Name:</b> {name}\n" \
+                        f"<b>Bundle ID:</b> <code>{bundle}</code>\n" \
+                        f"<b>Developer:</b> {dev}\n" \
+                        f"<b>Subtitle:</b> {subtitle}\n" \
+                        f"<b>Version:</b> {version}\n" \
+                        f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
+                        f"<b>Description:</b>\n{desc}"
+
+              response = requests.post(
+                  f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendPhoto",
+                  data={
+                      'chat_id': os.environ['CHANNEL_ID'],
+                      'photo': icon,
+                      'caption': message,
+                      'parse_mode': 'HTML'
+                  }
+              )
+
+              if response.status_code == 200:
+                  print(f"Successfully posted {name}!")
+              else:
+                  print(f"Error posting {name}: {response.text}")
+                  sys.exit(1)  # Fail workflow if Telegram error
+
           PY
