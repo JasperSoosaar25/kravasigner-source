@@ -58,6 +58,8 @@ jobs:
 
           print(f"Found {len(new_entries)} new app(s)! Posting to Telegram...")
 
+          headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'}
+
           for app in new_entries:
               name = app.get('name', 'Unknown')
               bundle = app.get('bundleIdentifier', 'Unknown')
@@ -67,7 +69,7 @@ jobs:
               versions = app.get('versions', [])
               version = versions[0].get('version', 'Unknown') if versions else 'Unknown'
               app_store_id = app.get('marketplaceID', '')
-              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # Fallback to cow
+              icon_url = app.get('iconURL', 'https://i.imgur.com/DMZZBwR.png')  # Fallback cow
 
               message = f"<b>🐮 New App Added to KravaSigner! 🐮</b>\n\n" \
                         f"<b>Name:</b> {name}\n" \
@@ -78,18 +80,21 @@ jobs:
                         f"<b>App Store:</b> https://apps.apple.com/app/id{app_store_id}\n\n" \
                         f"<b>Description:</b>\n{desc}"
 
-              # Download the icon image
+              # Download icon with User-Agent to bypass Imgur protection
               try:
-                  icon_response = requests.get(icon_url, timeout=10)
+                  icon_response = requests.get(icon_url, headers=headers, timeout=15)
                   icon_response.raise_for_status()
+                  # Quick check: if response is HTML (Imgur error page), skip
+                  if 'text/html' in icon_response.headers.get('Content-Type', ''):
+                      raise Exception("Received HTML instead of image")
                   icon_content = icon_response.content
-                  icon_filename = os.path.basename(icon_url.split('/')[-1]) or "icon.png"
+                  icon_filename = icon_url.split('/')[-1] or "icon.png"
               except Exception as e:
                   print(f"Failed to download icon {icon_url}: {e}")
                   icon_content = None
                   icon_filename = None
 
-              # Send as document (always works!)
+              # Send as document
               url = f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendDocument"
               data = {
                   'chat_id': os.environ['CHANNEL_ID'],
@@ -98,17 +103,17 @@ jobs:
               }
 
               if icon_content and icon_filename:
-                  files = {'document': (icon_filename, icon_content)}
+                  files = {'document': (icon_filename, icon_content, 'image/png')}
                   response = requests.post(url, data=data, files=files)
               else:
-                  # Fallback: just send text if icon failed
+                  # Fallback text-only
                   response = requests.post(
                       f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
                       data={**data, 'text': message + "\n\n(Icon failed to load 🥺)"}
                   )
 
               if response.status_code == 200:
-                  print(f"Successfully posted {name} as document!")
+                  print(f"Successfully posted {name}!")
               else:
                   print(f"Telegram error: {response.text}")
                   sys.exit(1)
