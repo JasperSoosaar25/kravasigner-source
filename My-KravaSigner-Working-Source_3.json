@@ -1,6 +1,6 @@
 {
-  "name": "My KravaSigner Source:33",
-  "subtitle": "A source of SOME (only SOME) tweaked/modded IPAs:33",
+  "name": "My KravaSigner Source:3",
+  "subtitle": "A source of SOME (only SOME) tweaked/modded IPAs:3",
   "description": "Welcome to my source! Here you'll find SOME (only SOME) tweaked/modded IPAs, I don’t think that I will ever be able to add all of the apps on the App Store, so yeah, but anyways:33",
   "iconURL": "https://i.imgur.com/DMZZBwR.png",
   "website": "",
@@ -72,15 +72,17 @@
           }
         ]
       },
-      ,
-{
-  "downloadURL": "https://example.com/test.ipa",
-  "size": 120000000,
-  "version": "99.99.9",
-  "date": "2025-12-24",
-  "localizedDescription": "Test trigger",
-  "minOSVersion": "16.0"
-}
+      "versions": [
+        {
+          "downloadURL": "https://pub-62165c9f78864efe94b9f51de0021312.r2.dev/DiuTube/v20.32.4/DiuTube_20.32.4_16.0_LeTi.ipa",
+          "size": 118900000,
+          "version": "20.32.4",
+          "buildVersion": "",
+          "date": "2025-12-15",
+          "localizedDescription": "Tweaked/modded YouTube with subscription unlocked!\n\nInitial release of the tweaked version based on v20.32.4.",
+          "minOSVersion": "16.0"
+        }
+      ],
       "appPermissions": {
         "entitlements": [],
         "privacy": {
